@@ -81,7 +81,7 @@ def convolution(A,B,T,nb):
 	return conv
 
 
-def JS_1(data_dir,T=100,tau=0.5,lag=0): 
+def JS_1(data_dir,T=100,tau=0.5 ,lag=0): 
 	return convolution(lambda t:np.exp(-(t-lag)/tau)*np.heaviside(t-lag,0.5)/tau,data_dir,T,len(data_dir))  
 
 
@@ -120,8 +120,46 @@ def Ker_mat(mat,Js):
 	return np.dot(np.dot(np.linalg.inv(np.dot(mat.T,mat)),mat.T),Js)
 
 
+def all_to_ker():
+	data_dir, D_n = get_data()
+	delta_D = data_dir - D_n
+	dt = 200/len(data_dir)
+	n = 100 #kernel size
+	list_t = np.linspace(0,n*dt,n)
+	tau=0.5
+	lag = 1
 
+	J1 = JS_1(data_dir) 
+	J2 = JS_2(data_dir) 
+	J3 = JS_3(data_dir)
+	#d_n_mat : nominal direction as a matrix
+	d_n_mat = D_n_matrix(D_n,n) #D_n[a:b]
 
+	ker1 = Ker_mat(d_n_mat,J1)
+	ker2 = Ker_mat(d_n_mat,J2)
+	ker3 = Ker_mat(d_n_mat,J3)
+	ker_th1 = np.exp(-list_t/tau)/tau
+	ker_th2 = np.exp(-list_t/tau)/tau
+	ker_th3 = np.exp(-(list_t-lag)/tau)/tau * np.heaviside(list_t-lag,0.5)
+
+	list_ratio = []
+	for (k,ker),ker_th in zip(enumerate([ker1,ker2,ker3]),[ker_th1,ker_th2,ker_th3]):
+		ratio = np.max(np.abs(ker_th))/np.max(np.abs(ker[1:-1])) # multiplicative ratio that doesn't affect the characteristic time
+		list_ratio.append(ratio)
+
+	J_p1 = np.convolve(list_ratio[0]*ker1,D_n,mode='same')*dt
+	J_p2 = np.convolve(list_ratio[1]*ker2,D_n,mode='same')*dt
+	J_p3 = np.convolve(list_ratio[2]*ker3,D_n,mode='same')*dt
+
+	dJ1 = J1 - J_p1
+	dJ2 = J2 - J_p2
+	dJ3 = J3 - J_p3
+
+	C1 = np.correlate(dJ1,delta_D,mode='full')[len(dJ1)-1:]
+	C2 = np.correlate(dJ2,delta_D,mode='full')[len(dJ2)-1:]
+	C3 = np.correlate(dJ3,delta_D,mode='full')[len(dJ3)-1:]
+	
+	return C1, C2, C3
 
 
 
